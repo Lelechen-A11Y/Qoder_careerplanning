@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { expertQuestions } from '../data/mockData';
 import { runCareerAgent, streamLocalAnswer } from '../agent/careerAgent';
+import { realityPerspective } from '../agent/realityPerspective';
 import { getData, saveData } from '../utils/storage';
 import type { AgentMessage, AgentResponse, Career } from '../types';
 
@@ -17,6 +18,7 @@ export default function ExpertDialog({ career, onClose }: { career: Career; onCl
   const [messages, setMessages] = useState<AgentMessage[]>(() => getData(`pathmap-agent-${career.id}`, []));
   const [question, setQuestion] = useState('');
   const [thinking, setThinking] = useState(false);
+  const [perspective, setPerspective] = useState(false);
   const [lastResponse, setLastResponse] = useState<AgentResponse | null>(null);
   useEffect(() => { cancelled.current = false; dialog.current?.showModal(); return () => { cancelled.current = true; }; }, []);
 
@@ -28,7 +30,8 @@ export default function ExpertDialog({ career, onClose }: { career: Career; onCl
     const prior = messages.slice(-10);
     const partial: AgentMessage = { id: crypto.randomUUID(), role: 'assistant', content: '', createdAt: new Date().toISOString() };
     setMessages([...messages, userMessage, partial]);
-    const response = runCareerAgent(content, career, userProfile, prior);
+    const base = runCareerAgent(content, career, userProfile, prior);
+    const response = perspective ? { ...base, answer: `${base.answer}\n\n${realityPerspective(career, userProfile)}`, trace: [...base.trace, '应用现实校准方法：任务、普通样本、成本与退路'] } : base;
     let streamed = '';
     for await (const chunk of streamLocalAnswer(response.answer)) {
       if (cancelled.current) return;
@@ -45,6 +48,7 @@ export default function ExpertDialog({ career, onClose }: { career: Career; onCl
     <div className="p-5 sm:p-7">
       <div className="flex items-start justify-between gap-4"><div><p className="flex items-center gap-2 text-xs text-teal-300"><Sparkles size={14}/>PATHMAP CAREER AGENT / LOCAL RAG</p><h2 id="agent-title" className="mt-3 text-xl font-semibold">{career.title} · 职业专家</h2></div><button type="button" onClick={onClose} aria-label="关闭对话" className="rounded-full p-2 text-slate-400 hover:bg-white/10"><X size={19}/></button></div>
       <div className="mt-4 flex gap-3 rounded-xl border border-amber-300/15 bg-amber-100/[.04] p-3 text-xs leading-5 text-slate-400"><ShieldCheck size={16} className="mt-0.5 shrink-0 text-amber-200"/><p>纯前端 Agent 演示：按意图检索本地职业资料，不调用大模型。资料均为演示内容，不代表真实市场数据；不会替你决定或承诺结果。</p></div>
+      <div className="mt-4 rounded-xl border border-white/10 p-3"><label className="flex items-center gap-3 text-sm text-teal-100"><input type="checkbox" checked={perspective} disabled={thinking} onChange={event => setPerspective(event.target.checked)} className="accent-teal-300"/>启用现实校准视角</label><p className="mt-2 text-xs leading-5 text-slate-400">借鉴张雪峰相关开源 skill 的就业倒推、成本与退路分析方法。非本人、非背书；仍以已检索证据为准。</p></div>
       <div className="mt-5 space-y-3">
         {!messages.length && <div className="rounded-2xl border border-white/10 bg-white/[.04] p-4"><p className="text-sm text-slate-300">从一个具体问题开始。</p><div className="mt-3 flex flex-wrap gap-2">{expertQuestions.map(prompt => <button key={prompt} type="button" onClick={() => void ask(prompt)} disabled={thinking} className="rounded-full border border-white/10 px-3 py-2 text-left text-xs text-slate-300 hover:border-teal-300/50 hover:text-teal-100">{prompt}</button>)}</div></div>}
         {messages.map(message => <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>{message.role === 'assistant' && <span className="grid size-7 shrink-0 place-items-center rounded-full bg-teal-300/10 text-teal-200"><Sparkles size={14}/></span>}<div className={`max-w-[88%] rounded-2xl p-4 ${message.role === 'user' ? 'bg-teal-300 text-slate-950' : 'border border-white/10 bg-white/[.045]'}`}>{message.role === 'assistant' && message.intent && <p className="mb-2 text-[10px] tracking-wider text-teal-300">ROUTE · {intentLabels[message.intent]}</p>}<p className="whitespace-pre-wrap text-sm leading-6">{message.content || <span className="flex items-center gap-2 text-slate-400"><LoaderCircle size={14} className="animate-spin"/>正在检索资料…</span>}</p>{message.sources?.length ? <div className="mt-4 border-t border-white/10 pt-3"><p className="mb-2 text-[10px] font-medium tracking-wider text-slate-500">资料依据 / 更新时间 / 适用范围</p>{message.sources.map(source => <div key={source.id} className="mb-2 rounded-lg bg-black/15 p-3 text-[10px] leading-5 text-slate-400"><p className="text-slate-300">{source.title}</p><p>{source.sourceName} · {source.asOf}</p><p>{source.scope}</p></div>)}</div> : message.role === 'assistant' && message.content && <p className="mt-3 border-t border-white/10 pt-2 text-[10px] leading-5 text-amber-200/80">未检索到可引用资料 · 建议人工核验</p>}{message.role === 'assistant' && message.handoff && <button type="button" onClick={() => { onClose(); navigate('/safeguard'); }} className="mt-3 inline-flex items-center gap-2 rounded-full border border-teal-300/30 px-3 py-2 text-xs text-teal-200 hover:bg-teal-300/10">去护航页查看人工校准 <ArrowRight size={13}/></button>}</div>{message.role === 'user' && <span className="grid size-7 shrink-0 place-items-center rounded-full bg-white/10 text-slate-300"><UserRound size={14}/></span>}</div>)}
