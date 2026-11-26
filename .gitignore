@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+
+# IDE cache
+.idea/
+.vscode/
+*.log
+
+# Git bundled in project (should use system git)
+Git/
+
+# Temp files
+*.tmp
+.DS_Store

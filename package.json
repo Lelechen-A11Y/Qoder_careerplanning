@@ -1,0 +1,11 @@
+{
+  "name": "Qoder_careerplanning",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {},
+  "packageManager": "pnpm@9.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
